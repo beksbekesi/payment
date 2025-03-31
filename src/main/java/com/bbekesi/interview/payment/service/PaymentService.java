@@ -6,6 +6,7 @@ import com.bbekesi.interview.payment.entity.Account;
 import com.bbekesi.interview.payment.entity.Outbox;
 import com.bbekesi.interview.payment.entity.Payment;
 import com.bbekesi.interview.payment.exception.AccountNotFoundException;
+import com.bbekesi.interview.payment.exception.InvalidUUIDException;
 import com.bbekesi.interview.payment.repository.AccountRepository;
 import com.bbekesi.interview.payment.repository.OutboxRepository;
 import com.bbekesi.interview.payment.repository.PaymentRepository;
@@ -36,9 +37,9 @@ public class PaymentService {
     )
     @Transactional
     public PaymentResponse processPayment(PaymentRequest request) {
-        Account fromAccount = accountRepository.findById(UUID.fromString(request.fromAccount()))
+        Account fromAccount = accountRepository.findById(getUUIDFromString(request.fromAccount()))
                 .orElseThrow(() -> new AccountNotFoundException("Account not found for fromAccount."));
-        Account toAccount = accountRepository.findById(UUID.fromString(request.toAccount()))
+        Account toAccount = accountRepository.findById(getUUIDFromString(request.toAccount()))
                 .orElseThrow(() -> new AccountNotFoundException("Account not found for toAccount."));
 
         if (balanceInsufficient(request, fromAccount)) {
@@ -68,6 +69,15 @@ public class PaymentService {
         return mapPaymentResponse(failedPayment);
     }
 
+    private UUID getUUIDFromString(String stringId) {
+        try {
+            return UUID.fromString(stringId);
+        } catch (IllegalArgumentException ex) {
+            log.error("Provided id is not a valid uuid : {}", stringId);
+            throw new InvalidUUIDException("Provided id is not a valid uuid " + stringId);
+        }
+    }
+
     private boolean balanceInsufficient(PaymentRequest request, Account fromAccount) {
         return fromAccount.getBalance()
                 .compareTo(request.amount()) < 0;
@@ -77,8 +87,8 @@ public class PaymentService {
         log.debug("Saving payment : {}", request);
         return paymentRepository.save(Payment.builder()
                 .amount(request.amount())
-                .fromAccountId(UUID.fromString(request.fromAccount()))
-                .toAccountId(UUID.fromString(request.toAccount()))
+                .fromAccountId(getUUIDFromString(request.fromAccount()))
+                .toAccountId(getUUIDFromString(request.toAccount()))
                 .status(paymentStatus)
                 .build());
     }
